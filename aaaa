@@ -1,0 +1,371 @@
+Imports System.IO
+Imports System.Data.SqlClient
+Imports System.Data
+Imports System.Drawing
+Imports Newtonsoft.Json
+Imports Newtonsoft.Json.Linq
+Imports Microsoft.Reporting.WebForms
+Imports System.Net
+
+Partial Class Request
+    Inherits System.Web.UI.Page
+
+    'Dim connectiontype As String = System.Configuration.ConfigurationManager.AppSettings("ConnectionType")
+
+    'Dim webser As New ServiceReference2.WebServiceSoapClient
+    Dim webservice As Object
+    Dim general As New CommonClass
+    Dim overideUser As String = ""
+    Shared ctrlno1 As String = String.Empty
+    Shared reportLocation As String = String.Empty
+    Shared localLocation As String = String.Empty
+    Shared timestampLocal As String = String.Empty
+    Dim jsonDaysRequestPath As String = File.ReadAllText(Server.MapPath("~/lib/NatureRequestDays.json"))
+
+    Dim connectiontype As String = System.Configuration.ConfigurationManager.AppSettings("ConnectionType")
+
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+        If Not Page.IsPostBack Then
+            If connectiontype = "T" Then
+                Session("UserName") = "mytest"
+                Session("branchno") = "001"
+            End If
+
+            If Session("UserName") Is Nothing Then
+                Response.Redirect("Login.aspx")
+                Exit Sub
+            End If
+
+            'Dim con = webser.GetConnectionString(System.Configuration.ConfigurationManager.ConnectionStrings("DataConnectionLive").ConnectionString)
+            'Using dt As DataTable = webser.SelectTableForCS("memberphotosignature", "signature", "memberid='0040053690'", "") '0040058239
+            '    Dim aa As Byte() = dt.Rows(0).Item(0)
+            '    Dim aasd As New MemoryStream(aa)
+            '    Dim asdf As New Bitmap(aasd)
+            '    imagetest.ImageUrl = "Data:Image/png;base64," + Convert.ToBase64String(aa)
+            '    ''MemoryStream ms=new MemoryStream(barr);
+            '    ''Bitmap bm=new Bitmap (ms);
+            '    ''bm.Save (Response .OutputStream,bm.RawFormat );
+            '    ''Dim aaa As System.Web.UI.WebControls.Image = dt.Rows(0).Item(0)
+            '    'imagetest = aaa
+            'End Using
+
+            ddlNatureReq.Items.Add("SELECT REQUEST")
+            ddlVerifiedby.Items.Add("--------------")
+            Call SearchDept()
+            populateDDLNatureRequest()
+
+            If Session("branchno") = "001" Then
+                Call populateDDLVerifiedby()
+            Else
+                dvVerified.Style.Add("visibility", "hidden")
+            End If
+            lblControlNo.Text = "AUTO GENERATED"
+            lblControlNo.ForeColor = Drawing.Color.Red
+            lblDateRequsted.Text = Date.Now.ToString("MM/dd/yyyy")
+            'txtDate.Value = Date.Today.ToString("yyyy-MM-dd")
+
+        End If
+    End Sub
+
+    Sub SearchDept()
+        webservice = general.getDefinitionWebser
+        Using dt As DataTable = webservice.QueryForCS("exec spJRsearch '" & Session("UserName") & "','" & Session("branchno") & "','50'")
+            lblPlaceConcern.Text = dt.Rows(0)(0).ToString()
+
+            Dim filter = Trim(dt.Rows(0)(1).ToString()).Split(New String() {","}, StringSplitOptions.None)
+            lblApprovedby.Text = Trim(filter(1) + ". " + filter(0))
+
+            filter = Trim(dt.Rows(0)(2).ToString()).Split(New String() {","}, StringSplitOptions.None)
+            lblRequestor.Text = Trim(filter(1) + ". " + filter(0))
+        End Using
+    End Sub
+
+    Protected Sub populateDDLNatureRequest()
+        webservice = general.getDefinitionWebser
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='Natureofrequest' and active='1'", "")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                ddlNatureReq.Items.Add(dt.Rows(i).Item(0).ToString)
+                ddlNatureReq.Items(i + 1).Value = Trim(dt.Rows(i).Item(0).ToString)
+                ddlNatureReq.Items(i + 1).Text = Trim(dt.Rows(i).Item(1).ToString)
+            Next
+
+        End Using
+    End Sub
+
+    Protected Sub populateDDLVerifiedby()
+        webservice = general.getDefinitionWebser
+        Dim branchlia = general.GetLiasonDivision(Session("UserName"), Session("branchno"))
+        Using dt As DataTable = webservice.QueryForCS("exec spJRsearch '" & Session("UserName") & "','" & Session("branchno") & "','40'")
+            For i = 0 To dt.Rows.Count - 1
+                Dim filter = Trim(dt.Rows(i).Item("UserName")).Split(New String() {","}, StringSplitOptions.None)
+
+                Dim lastname = filter(0) : Dim name = filter(1)
+
+                dt.Rows(i).Item("UserName") = Trim(name + ". " + lastname)
+                ddlVerifiedby.Items.Add(dt.Rows(i).Item("UserName").ToString)
+            Next
+
+            If dt.Rows.Count > 10 Then
+                ddlVerifiedby.Attributes.Add("OnMouseDown", "this.size=10;")
+                ddlVerifiedby.Attributes.Add("OnFocusOut", "this.size=1;")
+                ddlVerifiedby.Attributes.Add("OnDblClick", "this.size=1;")
+            End If
+        End Using
+    End Sub
+
+    Protected Function GetControlNo() As String
+        Dim year As Integer = DateTime.Now.Year
+        Dim month As String = DateTime.Now.ToString("MM")
+        Dim branchlia = general.GetLiasonDivision(Session("UserName"), Session("branchno"))
+        Dim CtrlNo = String.Concat(branchlia, year, month)
+
+        Dim series = IncrementSeries(CtrlNo)
+        GetControlNo = String.Concat(CtrlNo, series)
+        ctrlno1 = GetControlNo
+        Return GetControlNo
+    End Function
+
+    Protected Function IncrementSeries(controlno As String) As String
+        webservice = general.getDefinitionWebser
+        IncrementSeries = String.Empty
+        Using dt As DataTable = webservice.SelectTableForCS("JRHeader", "COUNT(*)", "LEFT(ControlNo, 9) = '" & controlno & "'", "")
+            If dt.Rows.Count > 0 Then
+                IncrementSeries = (dt.Rows(0)(0) + 1).ToString
+
+                If IncrementSeries.Length = 1 Then
+                    IncrementSeries = "00" + IncrementSeries
+                ElseIf IncrementSeries.Length = 2 Then
+                    IncrementSeries = "0" + IncrementSeries
+                End If
+            End If
+        End Using
+        Return IncrementSeries
+    End Function
+
+    Protected Sub saveJobRequest()
+        webservice = general.getDefinitionWebser
+        Dim controlNo = GetControlNo()
+        Dim status = "F" 'for verify
+        Dim verify = "" : Dim isverified As Integer = 0
+
+        If ddlVerifiedby.SelectedIndex = 0 Then
+            verify = "" : isverified = 1
+        Else
+            verify = Trim(ddlVerifiedby.SelectedValue) : isverified = 0
+        End If
+
+        Dim altsubject = txtSubject.Text.Replace("'", "''")
+        Dim altDetails = txtDetails.Text.Replace("'", "''")
+        Dim branchlia = general.GetLiasonDivision(Session("UserName"), Session("branchno"))
+
+        'Using dtlogin As DataTable = webser.GetTableDataDT("exec spJRSaveNew '" & controlNo & "', '" & Session("branchno") & "', '" & ddlNatureReq.SelectedValue & "', '" & altsubject & "', '" & altDetails & "', '" & lblRequestor.Text & "', '" & verify & "', '" & lblApprovedby.Text & "', '', '" & lblDateRequsted.Text & "', '" & txtDate.Value & "', '" & status & "','" & isverified & "'", con)
+        Dim isSuccess = webservice.CRUDCentral("exec spJRSaveNew '" & controlNo & "', '" & branchlia & "', '" & ddlNatureReq.SelectedValue & "', '" & altsubject & "', '" & altDetails & "', '" & lblRequestor.Text & "', '" & verify & "', '" & lblApprovedby.Text & "','', '" & status & "','" & isverified & "'")
+        If isSuccess = True Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "SaveSuccess();", True)
+        Else
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "SaveFailed();", True)
+        End If
+        'Using dtlogin As DataTable = webservice.QueryForCS("exec spJRSaveNew '" & controlNo & "', '" & branchlia & "', '" & ddlNatureReq.SelectedValue & "', '" & altsubject & "', '" & altDetails & "', '" & lblRequestor.Text & "', '" & verify & "', '" & lblApprovedby.Text & "', '', '" & status & "','" & isverified & "'")
+        '    ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "SaveSuccess();", True)
+        'End Using
+    End Sub
+
+    Protected Sub btnCleared_Click(sender As Object, e As EventArgs)
+        ddlNatureReq.SelectedIndex = 0
+        ddlVerifiedby.SelectedIndex = 0
+        lblDateRequsted.Text = Date.Now.ToString("MM/dd/yyyy")
+        'txtDate.Value = Date.Today.ToString("yyyy-MM-dd")
+        txtSubject.Text = ""
+        txtDetails.Text = ""
+    End Sub
+
+    Protected Sub btnSaved_Click(sender As Object, e As EventArgs) Handles btnSaved.Click
+        If ddlNatureReq.SelectedIndex = 0 Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ErrorNature();", True)
+            Exit Sub
+        End If
+
+        If txtDetails.Text = "" Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ErrorDetails();", True)
+            Exit Sub
+        End If
+
+        btnSave.Enabled = True
+        ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ConfirmSave();", True)
+    End Sub
+
+    Protected Sub btnSave_Click(sender As Object, e As EventArgs)
+        Call saveJobRequest()
+        Call prepReport()
+        ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "SaveSuccess();", True)
+        btnSave.Enabled = False
+
+        Dim folderlocation = localLocation
+        Dim filepath As String = localLocation 'FolderLocation & "JR-" & timestampLocal & ".pdf"
+        Dim intTimeStamp As Double = CDbl(timestampLocal) - 100
+        If File.Exists(filepath) Then
+            Dim fileCount As Integer = 0
+            Dim fil(Directory.GetFiles(Server.MapPath("~/temp")).Length) As String
+            'Dim hold1 = CDbl(Replace(Replace(Path.GetFileName(filepath), ".pdf", ""), "JR-", ""))
+            fil = Directory.GetFiles(Server.MapPath("~/temp"))
+            While fileCount < Directory.GetFiles(Server.MapPath("~/temp")).Length
+                Dim hold = Replace(Path.GetFileName(fil(fileCount)), "JR-", "")
+                If intTimeStamp > CDbl(Replace(hold, ".pdf", "")) Then
+                    Dim hold2 = hold
+                    File.Delete(fil(fileCount))
+                End If
+                fileCount += 1
+            End While
+        End If
+
+
+    End Sub
+
+    Protected Sub btnOveride_Click(sender As Object, e As EventArgs)
+        ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "override();", True)
+    End Sub
+
+    Protected Sub ddlNatureReq_SelectedIndexChanged(sender As Object, e As EventArgs)
+        Dim days As Integer
+        Dim allowedDays As Date = Date.Now
+
+        Using dtDaysOfRequest = JsonConvert.DeserializeObject(Of DataTable)(jsonDaysRequestPath)
+            For i = 0 To dtDaysOfRequest.Rows.Count - 1
+                If ddlNatureReq.SelectedItem.Text.ToString.ToLower = dtDaysOfRequest.Rows(i).Item("Type").ToString.ToLower Then days = CInt(dtDaysOfRequest.Rows(i).Item("days"))
+            Next
+        End Using
+
+        'If allowedDays.AddDays(days).DayOfWeek = 0 Then days += 1
+        'If allowedDays.AddDays(days).DayOfWeek = 6 Then days += 2
+        'Dim minimumDate = allowedDays.AddDays(days).Date
+
+        'txtDate.Value = minimumDate.Date.ToString("yyyy-MM-dd")
+    End Sub
+
+    Protected Sub btnDate_Click(sender As Object, e As EventArgs)
+        Dim request = ddlNatureReq.SelectedItem.Text.ToString
+        Dim days As Integer
+        Dim allowedDays As Date = Date.Now
+
+        If ddlNatureReq.SelectedIndex = 0 Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ErrorNature();", True)
+            Exit Sub
+        End If
+
+        'If (CDate(hdrequestNeeded.Value).DayOfWeek = DayOfWeek.Saturday Or CDate(hdrequestNeeded.Value).DayOfWeek = DayOfWeek.Sunday) Then
+        '    ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ErrorDate2();", True)
+        '    Exit Sub
+        'End If
+
+        Using dtDaysOfRequest = JsonConvert.DeserializeObject(Of DataTable)(jsonDaysRequestPath)
+            For i = 0 To dtDaysOfRequest.Rows.Count - 1
+                If request.ToLower = dtDaysOfRequest.Rows(i).Item("Type").ToString.ToLower Then days = CInt(dtDaysOfRequest.Rows(i).Item("days"))
+            Next
+        End Using
+
+        If allowedDays.AddDays(days).DayOfWeek = 0 Then days += 1
+        If allowedDays.AddDays(days).DayOfWeek = 6 Then days += 2
+
+        Dim minimumDate = allowedDays.AddDays(days).Date
+        Dim requestNeeded = CDate(hdrequestNeeded.Value)
+
+        'If minimumDate > requestNeeded Then
+        '    ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "ErrorDate1();", True)
+        '    Dim er = "Error"
+        '    txtDate.Value = minimumDate.Date.ToString("yyyy-MM-dd")
+        'Else
+        '    txtDate.Value = hdrequestNeeded.Value
+        'End If
+    End Sub
+
+    Public Sub prepReport()
+        Call generateReport()
+
+        Dim warnings As Warning() = Nothing
+        Dim streamids As String() = Nothing
+        Dim mimeType As String = Nothing
+        Dim encoding As String = Nothing
+        Dim extension As String = Nothing
+        Dim bytes As Byte() : Dim localbytes As Byte()
+
+        Dim FolderLocation As String = general.getReportLocation 'Server.MapPath("~/temp/")
+        localLocation = Server.MapPath("~/temp/")
+
+        If Not Directory.Exists(FolderLocation) Then Directory.CreateDirectory(FolderLocation)
+        If Not Directory.Exists(localLocation) Then Directory.CreateDirectory(localLocation)
+
+        timestampLocal = DateTime.Now.ToString("yyyyMMddHHmmss")
+        localLocation = localLocation & "JR-" & timestampLocal & ".pdf"
+        localbytes = ReportViewer1.LocalReport.Render("PDF", Nothing, mimeType, encoding, extension, streamids, warnings)
+        Dim fslocal As New FileStream(localLocation, FileMode.Create)
+        fslocal.Write(localbytes, 0, localbytes.Length)
+        fslocal.Close()
+
+        Dim filepath As String = FolderLocation & "\JR-" & ctrlno1 & ".pdf"
+        bytes = ReportViewer1.LocalReport.Render("PDF", Nothing, mimeType, encoding, extension, streamids, warnings)
+        Dim fs As New FileStream(filepath, FileMode.Create)
+        fs.Write(bytes, 0, bytes.Length)
+        fs.Close()
+
+        txtSubject.Text = "" : txtDetails.Text = ""
+        ddlNatureReq.SelectedIndex = 0 : ddlVerifiedby.SelectedIndex = 0
+    End Sub
+
+    Protected Sub generateReport()
+        ReportViewer1.LocalReport.Refresh()
+
+        ReportViewer1.ProcessingMode = ProcessingMode.Local
+        ReportViewer1.LocalReport.ReportPath = Server.MapPath("~/lib/JobRequestForm.rdlc")
+
+        Dim rptControlNo As New ReportParameter("ControlNo", ctrlno1)
+        Dim rptBranch As New ReportParameter("Branch", lblPlaceConcern.Text)
+        Dim rptDateRequested As New ReportParameter("DateRequested", lblDateRequsted.Text)
+        Dim rptSubject As New ReportParameter("Subject", txtSubject.Text)
+        Dim rptNature As New ReportParameter("NatureOfRequest", ddlNatureReq.SelectedValue)
+        Dim rptRequestorName As New ReportParameter("RequestorName", lblRequestor.Text)
+        Dim rptRequestorPosition As New ReportParameter("RequestorPosition", "position tba")
+        Dim rptVerifiedName As New ReportParameter("VerifiedName", ddlVerifiedby.SelectedValue)
+        Dim rptVerifiedPosition As New ReportParameter("VerifiedPosition", "position tba")
+        Dim rptApprovalName As New ReportParameter("ApprovalName", lblApprovedby.Text)
+        Dim rptApprovalPosition As New ReportParameter("ApprovalPosition", "position tba")
+        Dim rptDescription As New ReportParameter("Description", txtDetails.Text)
+        'Dim rptDateNeeded As New ReportParameter("DateNeeded", txtDate.Value)
+
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptControlNo})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptBranch})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptDateRequested})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptSubject})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptNature})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptRequestorName})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptRequestorPosition})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptVerifiedName})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptVerifiedPosition})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptApprovalName})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptApprovalPosition})
+        ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptDescription})
+        'ReportViewer1.LocalReport.SetParameters(New ReportParameter() {rptDateNeeded})
+        ReportViewer1.LocalReport.Refresh()
+    End Sub
+
+    Protected Sub btnprint_Click(sender As Object, e As EventArgs)
+        Dim TransferPage As String
+        'timestampLocal
+        TransferPage = "window.open('temp/JR-" & timestampLocal & ".PDF','popup_window','fullscreen=yes,resizable=yes');"
+        ScriptManager.RegisterStartupScript(Page, Page.GetType(), "open", TransferPage, True)
+    End Sub
+
+    Private Function GetVirtualPath(contype As String) As String
+        webservice = general.getDefinitionWebser
+        Dim filepath As String = String.Empty
+
+        If contype = "L" Then filepath = ConfigurationManager.AppSettings("JRLiveFolder")
+        If contype = "T" Then filepath = ConfigurationManager.AppSettings("JRTestFolder")
+
+        filepath = webservice.DeCipherText(filepath)
+        Return filepath
+    End Function
+
+End Class
+
+
+it has error in this line If intTimeStamp > CDbl(Replace(hold, ".pdf", "")) Then
