@@ -10,13 +10,16 @@
 
 
 Protected Sub gvVerify_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvVerify.RowCommand
-    If e.CommandName = "SelectControl" Then
+    If e.CommandName = "SelectRow" Then
         Dim controlNo As String = e.CommandArgument.ToString()
 
-        ' Call your method using control number
-        jobRequestDetailsShow(controlNo)
+        ' Do something with controlNo (e.g., load data)
+        lblDetails.Text = "Selected Control No: " & controlNo
 
-        ' Show modal popup
-        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "ShowPopup", "$('#verifyModal').modal('show');", True)
+        ' Optional: show Bootstrap modal
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "ShowModal", "$('#verifyModal').modal('show');", True)
+
+        ' OR: Call your existing method
+        Call jobRequestDetailsShow(controlNo)
     End If
 End Sub
