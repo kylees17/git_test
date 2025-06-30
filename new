@@ -1,0 +1,22 @@
+<asp:TemplateField HeaderText="Action">
+    <ItemTemplate>
+        <asp:LinkButton ID="lnkVerify" runat="server"
+            CommandName="SelectControl"
+            CommandArgument='<%# Eval("ControlNo") %>'
+            Text="🔍 Verify"
+            CssClass="btn btn-sm btn-primary" />
+    </ItemTemplate>
+</asp:TemplateField>
+
+
+Protected Sub gvVerify_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvVerify.RowCommand
+    If e.CommandName = "SelectControl" Then
+        Dim controlNo As String = e.CommandArgument.ToString()
+
+        ' Call your method using control number
+        jobRequestDetailsShow(controlNo)
+
+        ' Show modal popup
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "ShowPopup", "$('#verifyModal').modal('show');", True)
+    End If
+End Sub
