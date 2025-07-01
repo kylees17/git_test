@@ -1,0 +1,2 @@
+ScriptManager.RegisterStartupScript(Me, Me.GetType(), "showDiv2", "$('#backgroundpopup').fadeIn(); $('#div2').fadeIn();", True)
+    
