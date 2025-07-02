@@ -1,0 +1,158 @@
+Imports System.Data
+Imports System.Data.SqlClient
+Imports System.IO
+
+Public Class Designation
+    Inherits System.Web.UI.Page
+
+    Dim webservice As Object
+    Dim general As New CommonClass
+
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
+        If Not Page.IsPostBack Then
+            If Session("UserName") Is Nothing Then
+                Response.Redirect("Login.aspx")
+                Exit Sub
+            End If
+
+            LoadJobRequests()
+        End If
+    End Sub
+
+    ' Loads the list of job requests
+    Private Sub LoadJobRequests()
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A INNER JOIN JRStatus B ON A.ControlNo = B.ControlNo"
+        Dim columns = "A.ControlNo, A.Subject, A.RequestedBy, A.DateRequested, B.PriorityLevel"
+        Dim conditions = "B.JRStatus = 'A'"
+        Dim orderby = "B.PriorityLevel ASC, A.DateRequested DESC"
+
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            While dt.Rows.Count Mod 10 <> 0
+                dt.Rows.Add("", "", "", Nothing)
+            End While
+
+            lblNotice.Visible = (dt.Rows.Count = 0)
+
+            gvReiveList.DataSource = dt
+            gvReiveList.DataBind()
+        End Using
+
+        ' Format Priority Level and row style
+        For Each row As GridViewRow In gvReiveList.Rows
+            Dim cellText As String = row.Cells(4).Text
+            Select Case cellText
+                Case "1" : row.Cells(4).Text = "High"
+                Case "2" : row.Cells(4).Text = "Normal"
+                Case "3" : row.Cells(4).Text = "Low"
+                Case Else : row.Cells(4).Text = ""
+            End Select
+
+            row.CssClass = If(String.IsNullOrWhiteSpace(row.Cells(0).Text), "gridHover1", "gridHover")
+        Next
+    End Sub
+
+    ' Handles each row in GridView
+    Protected Sub gvReiveList_RowDataBound(sender As Object, e As GridViewRowEventArgs)
+        If e.Row.RowType = DataControlRowType.DataRow Then
+            Dim subjectValue As String = DataBinder.Eval(e.Row.DataItem, "Subject").ToString()
+            Dim btnSelect As Button = CType(e.Row.FindControl("btnSelect"), Button)
+            btnSelect.Visible = Not String.IsNullOrEmpty(subjectValue)
+        End If
+    End Sub
+
+    ' Triggered when Select button is clicked
+    Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
+        If e.CommandName = "SelectRow" Then
+            Dim controlNo As String = e.CommandArgument.ToString()
+            ShowJobRequestDetails(controlNo)
+
+            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+        End If
+    End Sub
+
+    ' GridView paging
+    Protected Sub gvReiveList_PageIndexChanging(sender As Object, e As GridViewPageEventArgs) Handles gvReiveList.PageIndexChanging
+        gvReiveList.PageIndex = e.NewPageIndex
+        LoadJobRequests()
+    End Sub
+
+    ' Populate job request details into modal
+    Private Sub ShowJobRequestDetails(controlNo As String)
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A INNER JOIN reference C ON C.code = A.natureofrequest"
+        Dim columns = "(SELECT BranchName FROM FSBranchDepartment WHERE BranchNo = A.BranchDept) AS BranchDept, " &
+                      "A.natureofrequest, C.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested"
+        Dim conditions = $"A.ControlNo = '{controlNo}' AND C.type = 'NatureOfRequest'"
+
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, "")
+            If dt.Rows.Count > 0 Then
+                lblControlNo.Text = dt.Rows(0)("ControlNo").ToString()
+                lblPlaceConcern.Text = dt.Rows(0)("BranchDept").ToString()
+                lblNatureRequest.Text = dt.Rows(0)("Description").ToString()
+                lblRequestor.Text = dt.Rows(0)("RequestedBy").ToString()
+                lblVerifiedBy.Text = dt.Rows(0)("VerifiedBy").ToString()
+                lblApprovedby.Text = dt.Rows(0)("ApprovedBy").ToString()
+                lblDateRequsted.Text = dt.Rows(0)("DateRequested").ToString()
+                lblSubject.Text = dt.Rows(0)("Subject").ToString()
+                txtDetails.Text = dt.Rows(0)("Details").ToString()
+                hdCode.Value = dt.Rows(0)("natureofrequest").ToString()
+            End If
+        End Using
+    End Sub
+
+    ' Populate dropdown with section options
+    Private Sub PopulateSectionDropdown()
+        webservice = general.getDefinitionWebser
+        ddlSection.Items.Clear()
+
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code, description", "type='referredsec' AND active='1'", "")
+            For Each row As DataRow In dt.Rows
+                ddlSection.Items.Add(New ListItem(row("description").ToString().Trim(), row("code").ToString().Trim()))
+            Next
+        End Using
+    End Sub
+
+    ' Handles Designate button click
+    Protected Sub btnDesignate_Click(sender As Object, e As EventArgs)
+        PopulateSectionDropdown()
+
+        Dim req = hdCode.Value.Trim().ToUpper()
+
+        Select Case req
+            Case "P", "R", "RG", "T", "UT", "U", "UIC"
+                ddlSection.SelectedIndex = 0
+            Case "SE"
+                ddlSection.SelectedIndex = 3
+            Case Else
+                ddlSection.SelectedIndex = 1
+        End Select
+
+        txtRemarks.Text = ""
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "openModal", "$('#dvDesignation').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+    End Sub
+
+    ' Refreshes the GridView
+    Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
+        LoadJobRequests()
+    End Sub
+
+    ' Handles Done/Save button click in Designation modal
+    Protected Sub btnSave_Click(sender As Object, e As EventArgs)
+        webservice = general.getDefinitionWebser
+
+        Dim query = $"UPDATE JRStatus SET " &
+                    $"ReferredSec = '{ddlSection.SelectedValue}', " &
+                    $"ReceivedBy = '{Session("UserName")}', " &
+                    $"DateReceived = '{Date.Today}', " &
+                    $"Remarks = '{txtRemarks.Text}', " &
+                    $"JRStatus = 'S' " &
+                    $"WHERE ControlNo = '{lblControlNo.Text}'"
+
+        Dim success = webservice.CRUDCentral(query)
+
+        Dim script = If(success, "AssignSuccess();", "Error();")
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "notifyResult", script, True)
+    End Sub
+
+End Class
