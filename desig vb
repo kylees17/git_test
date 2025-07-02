@@ -1,34 +1,17 @@
-Imports System.IO
-Imports System.Data.SqlClient
 Imports System.Data
-Imports Microsoft.Reporting.WebForms
-
+Imports System.Data.SqlClient
+Imports System.IO
+Imports System.Reflection.Emit
 
 
 Public Class Designation
     Inherits System.Web.UI.Page
 
-    'Dim connectiontype As String = System.Configuration.ConfigurationManager.AppSettings("ConnectionType")
-    'Dim webser As New ServiceReference1.WebServiceSoapClient
-    'Dim webser As New TestWebService.WebServiceSoapClient
+
     Dim webservice As Object
     Dim general As New CommonClass
     Dim endPage As Integer
 
-    'Private Function GetConnectionString() As String
-    '    Dim constring As String = String.Empty
-
-    '    If connectiontype = "T" Then
-    '        constring = webser.GetConnectionString(System.Configuration.ConfigurationManager.ConnectionStrings("DataConnectionTest").ConnectionString)
-    '        'constring = pubref.GetConnectionString("192.168.0.15", "CENTRALDBTEST", "sa", "abcd@1234")
-    '    End If
-
-    '    If connectiontype = "L" Then
-    '        constring = webser.GetConnectionString(System.Configuration.ConfigurationManager.ConnectionStrings("DataConnectionLive").ConnectionString)
-    '        'constring = pubref.GetConnectionStringLive()
-    '    End If
-    '    Return constring
-    'End Function
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
         If Not Page.IsPostBack Then
             'If connectiontype = "T" Then
@@ -43,6 +26,7 @@ Public Class Designation
         End If
         Call jobRequestRecieveList()
     End Sub
+
     Protected Sub jobRequestRecieveList()
         webservice = general.getDefinitionWebser
         Dim table = "JRHeader A inner join JRStatus B On A.ControlNo = B.ControlNo"
@@ -82,39 +66,10 @@ Public Class Designation
         Next
     End Sub
 
-    Protected Sub jobRequestDetailsShow(controlNo As String)
-        webservice = general.getDefinitionWebser
-        Dim table = "JRHeader A inner join reference c on c.code = a.natureofrequest"
-        Dim columns = "(select BranchName from FSBranchDepartment where BranchNo =a.BranchDept) As BranchDept, a.natureofrequest, c.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested "
-        Dim conditions = "A.ControlNo = '" & controlNo & "' and c.type='NatureOfRequest'"
-        Dim orderby = ""
-
-        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
-            lblControlNo.Text = dt.Rows(0).Item("ControlNo")
-            lblPlaceConcern.Text = dt.Rows(0).Item("BranchDept")
-            lblNatureRequest.Text = dt.Rows(0).Item("Description")
-            lblRequestor.Text = dt.Rows(0).Item("RequestedBy")
-            lblVerifiedBy.Text = dt.Rows(0).Item("VerifiedBy")
-            lblApprovedby.Text = dt.Rows(0).Item("ApprovedBy")
-            lblDateRequsted.Text = dt.Rows(0).Item("DateRequested")
-            'lblDateNeeded.Text = dt.Rows(0).Item("DateNeeded")
-            lblSubject.Text = dt.Rows(0).Item("Subject")
-            txtDetails.Text = dt.Rows(0).Item("Details")
-            hdCode.Value = dt.Rows(0).Item("natureofrequest")
-        End Using
-    End Sub
-
-    Protected Sub populateDDLNatureRequest()
-        webservice = general.getDefinitionWebser
-        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' and active='1'", "")
-            For i As Integer = 0 To dt.Rows.Count - 1
-                ddlSection.Items.Add(New ListItem(Trim(dt.Rows(i).Item("description")).ToString, Trim(dt.Rows(i).Item("code").ToString)))
-            Next
-        End Using
-    End Sub
 
     Protected Sub gvReiveList_RowDataBound(sender As Object, e As GridViewRowEventArgs)
-        If e.Row.RowType = DataControlRowType.DataRow Then
+
+        If (e.Row.RowType = DataControlRowType.DataRow) Then
 
             Dim subjectValue As String = DataBinder.Eval(e.Row.DataItem, "Subject".ToString)
             Dim btnSelect As Button = CType(e.Row.FindControl("btnSelect"), Button)
@@ -125,26 +80,22 @@ Public Class Designation
             Else
                 btnSelect.Visible = True
             End If
-            'added button
+
         End If
+
     End Sub
 
-
     Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
-
         If e.CommandName = "SelectRow" Then
             Dim controlNo As String = e.CommandArgument.ToString()
 
             jobRequestDetailsShow(controlNo)
 
-
-            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#div2').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
-
-            'improvements
+            ScriptManager.RegisterStartupScript(Me.Page, Me.Page.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
 
         End If
-
     End Sub
+
     Protected Sub gvReiveList_SelectedIndexChanged(sender As Object, e As EventArgs) Handles gvReiveList.SelectedIndexChanged
         If Trim(gvReiveList.SelectedRow.Cells(0).Text) <> "" Then
             lblDetails.Text = gvReiveList.SelectedRow.Cells(0).Text + " - Details"
@@ -160,7 +111,36 @@ Public Class Designation
         'ViewTransactions.Visible = False
         Call jobRequestRecieveList()
     End Sub
+    Protected Sub jobRequestDetailsShow(controlNo As String)
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A inner join reference c on c.code = a.natureofrequest"
+        Dim columns = "(select BranchName from FSBranchDepartment where BranchNo =a.BranchDept) As BranchDept, a.natureofrequest, c.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested"
+        Dim conditions = "A.ControlNo = '" & controlNo & "' and c.type='NatureOfRequest'"
+        Dim orderby = ""
 
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            lblControlNo.Text = dt.Rows(0).Item("ControlNo")
+            lblPlaceConcern.Text = dt.Rows(0).Item("BranchDept")
+            lblNatureRequest.Text = dt.Rows(0).Item("Description")
+            lblRequestor.Text = dt.Rows(0).Item("RequestedBy")
+            lblVerifiedBy.Text = dt.Rows(0).Item("VerifiedBy")
+            lblApprovedby.Text = dt.Rows(0).Item("ApprovedBy")
+            lblDateRequsted.Text = dt.Rows(0).Item("DateRequested")
+            lblSubject.Text = dt.Rows(0).Item("Subject")
+            txtDetails.Text = dt.Rows(0).Item("Details")
+            hdCode.Value = dt.Rows(0).Item("natureofrequest")
+        End Using
+    End Sub
+
+
+    Protected Sub populateDDLNatureRequest()
+        webservice = general.getDefinitionWebser
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' and active='1'", "")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                ddlSection.Items.Add(New ListItem(Trim(dt.Rows(i).Item("description")).ToString, Trim(dt.Rows(i).Item("code").ToString)))
+            Next
+        End Using
+    End Sub
     Protected Sub btnDesignate_Click(sender As Object, e As EventArgs)
         Call populateDDLNatureRequest()
         Dim req = Trim(hdCode.Value.ToUpper)
@@ -174,6 +154,9 @@ Public Class Designation
 
         txtRemarks.Text = ""
         ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#dvDesignation').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+    End Sub
+    Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
+        Call jobRequestRecieveList()
     End Sub
 
     Protected Sub btnSave_Click(sender As Object, e As EventArgs)
@@ -190,10 +173,6 @@ Public Class Designation
         Else
             ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "Error();", True)
         End If
-    End Sub
-
-    Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
-        Call jobRequestRecieveList()
     End Sub
 
 
