@@ -1,1 +1,6 @@
 <div id="backgroundpopup" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background-color:black;z-index:1;opacity:0.5;"></div>
+
+
+
+ScriptManager.RegisterStartupScript(Me.Page, Me.Page.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+
