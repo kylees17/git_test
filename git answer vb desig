@@ -1,0 +1,131 @@
+<%@ Page Title="" Language="vb" AutoEventWireup="false" MasterPageFile="~/MainForm.Master" CodeBehind="Designation.aspx.vb" Inherits="JRequest.Designation" %>
+<%@ Register Assembly="Microsoft.ReportViewer.WebForms, Version=11.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91" Namespace="Microsoft.Reporting.WebForms" TagPrefix="rsweb" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
+    <style>
+        .gridHover:hover { cursor: pointer; background-color: #aebfd0; }
+        .gridHover1:hover { background-color: transparent; }
+        .gvPagerCss span { font-weight: bold; }
+        .modalHeader { font-size: 18px; display: flex; height: 50px; align-items: center; color: white; }
+        #div2, #dvDesignation {
+            display: none;
+            position: fixed;
+            background-color: white;
+            border: 3px solid #2c66b6;
+            z-index: 1000;
+            border-radius: 4px;
+            padding: 20px;
+        }
+        #div2 { width: 70%; top: 15%; left: 15%; }
+        #dvDesignation { width: 350px; top: 35%; left: 35%; }
+        .resultDetail { width: 60%; margin-left: 5px; }
+        .detailContent { display: inline-block; width: 160px; text-align: right; margin-right: 10px; }
+    </style>
+
+    <script type="text/javascript">
+        function AssignSuccess() {
+            Swal.fire({
+                icon: 'info',
+                title: 'Job Assigned',
+                confirmButtonText: 'OK',
+                customClass: 'swal-size-sm'
+            }).then(() => { document.getElementById("btnDummy").click(); });
+        }
+
+        function Error() {
+            Swal.fire({
+                icon: 'error',
+                title: 'Something went wrong',
+                text: 'Please try again later',
+                confirmButtonText: 'OK',
+                customClass: 'swal-size-sm'
+            }).then(() => { document.getElementById("btnDummy").click(); });
+        }
+    </script>
+
+    <!-- GridView Section -->
+    <asp:UpdatePanel ID="UpdatePanel1" runat="server">
+        <ContentTemplate>
+            <asp:GridView ID="gvReiveList" runat="server" AutoGenerateColumns="False" AllowPaging="True" PageSize="10"
+                OnRowDataBound="gvReiveList_RowDataBound" OnRowCommand="gvReiveList_RowCommand"
+                CssClass="table table-bordered" Width="100%">
+                <Columns>
+                    <asp:BoundField HeaderText="Control No" DataField="ControlNo" />
+                    <asp:BoundField HeaderText="Subject" DataField="Subject" />
+                    <asp:BoundField HeaderText="Requested By" DataField="RequestedBy" />
+                    <asp:BoundField HeaderText="Date Requested" DataField="DateRequested" DataFormatString="{0:MM/dd/yyyy}" />
+                    <asp:BoundField HeaderText="Priority Level" DataField="PriorityLevel" />
+                    <asp:TemplateField HeaderText="Action">
+                        <ItemTemplate>
+                            <asp:Button ID="btnSelect" runat="server" Text="Select" CssClass="btn btn-sm btn-primary"
+                                CommandName="SelectRow" CommandArgument='<%# Eval("ControlNo") %>' />
+                        </ItemTemplate>
+                    </asp:TemplateField>
+                </Columns>
+            </asp:GridView>
+
+            <asp:Label ID="lblNotice" runat="server" Visible="False" Text="Nothing to display" />
+            <asp:Button ID="btnDummy" runat="server" Style="display: none;" OnClick="btnDummy_Click" />
+        </ContentTemplate>
+    </asp:UpdatePanel>
+
+    <!-- Details Modal (div2) -->
+    <div id="div2">
+        <div class="modalHeader" style="background-color: #2c66b6;">
+            <i class="fa fa-question-circle" style="margin-left: 15px;"></i>
+            <asp:Label ID="lblDetails" runat="server" Style="margin-left: 15px;" />
+            <i class="fa fa-times" style="cursor: pointer; margin-left:auto; margin-right: 10px;" onclick="$('#div2').fadeOut(); $('#backgroundpopup').fadeOut();"></i>
+        </div>
+
+        <asp:UpdatePanel ID="UpdatePanelDetails" runat="server">
+            <ContentTemplate>
+                <div style="margin-top: 20px;">
+                    <div><span class="detailContent">Branch/Dept Concern:</span><asp:Label ID="lblPlaceConcern" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Requested By:</span><asp:Label ID="lblRequestor" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Nature of Request:</span><asp:Label ID="lblNatureRequest" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Verified By:</span><asp:Label ID="lblVerifiedBy" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Approved By:</span><asp:Label ID="lblApprovedby" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Control No:</span><asp:Label ID="lblControlNo" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Date Requested:</span><asp:Label ID="lblDateRequsted" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Date Needed:</span><asp:Label ID="lblDateNeeded" runat="server" CssClass="resultDetail" /></div>
+                    <div><span class="detailContent">Subject:</span><asp:Label ID="lblSubject" runat="server" CssClass="resultDetail" /></div>
+                    <div>
+                        <span class="detailContent">Details:</span><br />
+                        <asp:TextBox ID="txtDetails" runat="server" TextMode="MultiLine" Width="90%" Height="100px" Enabled="false" CssClass="form-control" />
+                    </div>
+                    <div style="text-align: right; margin-top: 15px;">
+                        <asp:Button ID="btnDesignate" runat="server" Text="Designate" CssClass="btn btn-success" OnClick="btnDesignate_Click" />
+                    </div>
+                    <asp:HiddenField ID="hdCode" runat="server" />
+                </div>
+            </ContentTemplate>
+        </asp:UpdatePanel>
+    </div>
+
+    <!-- Designation Modal (dvDesignation) -->
+    <div id="dvDesignation">
+        <div class="modalHeader" style="background-color: #2c66b6;">
+            <i class="fa fa-briefcase" style="margin-left: 15px;"></i>
+            <span style="margin-left: 15px;">Assign Section</span>
+            <i class="fa fa-times" style="cursor: pointer; margin-left:auto; margin-right: 10px;" onclick="$('#dvDesignation').fadeOut(); $('#backgroundpopup').fadeOut();"></i>
+        </div>
+
+        <asp:UpdatePanel ID="UpdatePanelAssign" runat="server">
+            <ContentTemplate>
+                <div style="margin-top: 20px;">
+                    <div>
+                        <span class="detailContent">Section:</span>
+                        <asp:DropDownList ID="ddlSection" runat="server" CssClass="form-control" Width="60%" />
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <span class="detailContent">Remarks:</span><br />
+                        <asp:TextBox ID="txtRemarks" runat="server" TextMode="MultiLine" Width="90%" Height="100px" CssClass="form-control" />
+                    </div>
+                    <div style="text-align: center; margin-top: 15px;">
+                        <asp:Button ID="btnSave" runat="server" Text="Done" CssClass="btn btn-primary" OnClick="btnSave_Click" />
+                    </div>
+                </div>
+            </ContentTemplate>
+        </asp:UpdatePanel>
+    </div>
+</asp:Content>
