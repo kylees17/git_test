@@ -1,0 +1,28 @@
+Protected Sub jobRequestDetailsShow(controlNo As String)
+    Try
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A inner join reference c on c.code = a.natureofrequest"
+        Dim columns = "(select BranchName from FSBranchDepartment where BranchNo =a.BranchDept) As BranchDept, a.natureofrequest, c.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested "
+        Dim conditions = "A.ControlNo = '" & controlNo & "' and c.type='NatureOfRequest'"
+        Dim orderby = ""
+
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            If dt IsNot Nothing AndAlso dt.Rows.Count > 0 Then
+                lblControlNo.Text = dt.Rows(0).Item("ControlNo").ToString()
+                lblPlaceConcern.Text = dt.Rows(0).Item("BranchDept").ToString()
+                lblNatureRequest.Text = dt.Rows(0).Item("Description").ToString()
+                lblRequestor.Text = dt.Rows(0).Item("RequestedBy").ToString()
+                lblVerifiedBy.Text = dt.Rows(0).Item("VerifiedBy").ToString()
+                lblApprovedby.Text = dt.Rows(0).Item("ApprovedBy").ToString()
+                lblDateRequsted.Text = dt.Rows(0).Item("DateRequested").ToString()
+                lblSubject.Text = dt.Rows(0).Item("Subject").ToString()
+                txtDetails.Text = dt.Rows(0).Item("Details").ToString()
+                hdCode.Value = dt.Rows(0).Item("natureofrequest").ToString()
+            Else
+                lblDetails.Text = "No data found."
+            End If
+        End Using
+    Catch ex As Exception
+        lblDetails.Text = "Error loading data: " & ex.Message
+    End Try
+End Sub
