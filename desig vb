@@ -1,0 +1,200 @@
+Imports System.IO
+Imports System.Data.SqlClient
+Imports System.Data
+Imports Microsoft.Reporting.WebForms
+
+
+
+Public Class Designation
+    Inherits System.Web.UI.Page
+
+    'Dim connectiontype As String = System.Configuration.ConfigurationManager.AppSettings("ConnectionType")
+    'Dim webser As New ServiceReference1.WebServiceSoapClient
+    'Dim webser As New TestWebService.WebServiceSoapClient
+    Dim webservice As Object
+    Dim general As New CommonClass
+    Dim endPage As Integer
+
+    'Private Function GetConnectionString() As String
+    '    Dim constring As String = String.Empty
+
+    '    If connectiontype = "T" Then
+    '        constring = webser.GetConnectionString(System.Configuration.ConfigurationManager.ConnectionStrings("DataConnectionTest").ConnectionString)
+    '        'constring = pubref.GetConnectionString("192.168.0.15", "CENTRALDBTEST", "sa", "abcd@1234")
+    '    End If
+
+    '    If connectiontype = "L" Then
+    '        constring = webser.GetConnectionString(System.Configuration.ConfigurationManager.ConnectionStrings("DataConnectionLive").ConnectionString)
+    '        'constring = pubref.GetConnectionStringLive()
+    '    End If
+    '    Return constring
+    'End Function
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+        If Not Page.IsPostBack Then
+            'If connectiontype = "T" Then
+            '    Session("UserName") = "PERIDOSMR"
+            '    Session("branchno") = "001"
+            'End If
+
+            If Session("UserName") Is Nothing Then
+                Response.Redirect("Login.aspx")
+                Exit Sub
+            End If
+        End If
+        Call jobRequestRecieveList()
+    End Sub
+    Protected Sub jobRequestRecieveList()
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A inner join JRStatus B On A.ControlNo = B.ControlNo"
+        Dim columns = "A.ControlNo, A.Subject, A.RequestedBy, A.DateRequested,B.PriorityLevel"
+        Dim conditions = "(B.JRStatus = 'A')" ' or B.JRStatus='S'
+        Dim orderby = "B.PriorityLevel asc,A.DateRequested Desc"
+
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            While dt.Rows.Count Mod 10 <> 0
+                dt.Rows.Add("", "", "", Nothing)
+            End While
+
+            If dt.Rows.Count = 0 Then lblNotice.Visible = True
+
+            gvReiveList.DataSource = dt
+            gvReiveList.DataBind()
+        End Using
+
+        For i = 0 To gvReiveList.Rows.Count - 1
+            Dim lvl = gvReiveList.Rows(i).Cells(4).Text
+            Try
+                If CInt(gvReiveList.Rows(i).Cells(4).Text) = 1 Then lvl = "High"
+                If CInt(gvReiveList.Rows(i).Cells(4).Text) = 2 Then lvl = "Normal"
+                If CInt(gvReiveList.Rows(i).Cells(4).Text) = 3 Then lvl = "Low"
+            Catch ex As Exception
+                lvl = ""
+            End Try
+            gvReiveList.Rows(i).Cells(4).Text = lvl
+        Next
+
+        For i As Integer = 0 To gvReiveList.Rows.Count - 1
+            If Trim(gvReiveList.Rows(i).Cells(0).Text.ToString) = "" Then
+                gvReiveList.Rows(i).CssClass = "gridHover1"
+            Else
+                gvReiveList.Rows(i).CssClass = "gridHover"
+            End If
+        Next
+    End Sub
+
+    Protected Sub jobRequestDetailsShow(controlNo As String)
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A inner join reference c on c.code = a.natureofrequest"
+        Dim columns = "(select BranchName from FSBranchDepartment where BranchNo =a.BranchDept) As BranchDept, a.natureofrequest, c.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested "
+        Dim conditions = "A.ControlNo = '" & controlNo & "' and c.type='NatureOfRequest'"
+        Dim orderby = ""
+
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            lblControlNo.Text = dt.Rows(0).Item("ControlNo")
+            lblPlaceConcern.Text = dt.Rows(0).Item("BranchDept")
+            lblNatureRequest.Text = dt.Rows(0).Item("Description")
+            lblRequestor.Text = dt.Rows(0).Item("RequestedBy")
+            lblVerifiedBy.Text = dt.Rows(0).Item("VerifiedBy")
+            lblApprovedby.Text = dt.Rows(0).Item("ApprovedBy")
+            lblDateRequsted.Text = dt.Rows(0).Item("DateRequested")
+            'lblDateNeeded.Text = dt.Rows(0).Item("DateNeeded")
+            lblSubject.Text = dt.Rows(0).Item("Subject")
+            txtDetails.Text = dt.Rows(0).Item("Details")
+            hdCode.Value = dt.Rows(0).Item("natureofrequest")
+        End Using
+    End Sub
+
+    Protected Sub populateDDLNatureRequest()
+        webservice = general.getDefinitionWebser
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' and active='1'", "")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                ddlSection.Items.Add(New ListItem(Trim(dt.Rows(i).Item("description")).ToString, Trim(dt.Rows(i).Item("code").ToString)))
+            Next
+        End Using
+    End Sub
+
+    Protected Sub gvReiveList_RowDataBound(sender As Object, e As GridViewRowEventArgs)
+        If e.Row.RowType = DataControlRowType.DataRow Then
+
+            Dim subjectValue As String = DataBinder.Eval(e.Row.DataItem, "Subject".ToString)
+            Dim btnSelect As Button = CType(e.Row.FindControl("btnSelect"), Button)
+
+            If String.IsNullOrEmpty(subjectValue) Then
+                btnSelect.Visible = False
+
+            Else
+                btnSelect.Visible = True
+            End If
+            'added button
+        End If
+    End Sub
+
+
+    Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
+
+        If e.CommandName = "SelectRow" Then
+            Dim controlNo As String = e.CommandArgument.ToString()
+
+            jobRequestDetailsShow(controlNo)
+
+
+            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#div2').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+
+            'improvements
+
+        End If
+
+    End Sub
+    Protected Sub gvReiveList_SelectedIndexChanged(sender As Object, e As EventArgs) Handles gvReiveList.SelectedIndexChanged
+        If Trim(gvReiveList.SelectedRow.Cells(0).Text) <> "" Then
+            lblDetails.Text = gvReiveList.SelectedRow.Cells(0).Text + " - Details"
+            Call jobRequestDetailsShow(gvReiveList.SelectedRow.Cells(0).Text)
+
+            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#div2').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+        End If
+    End Sub
+
+    Protected Sub gvReiveList_PageIndexChanging(sender As Object, e As GridViewPageEventArgs) Handles gvReiveList.PageIndexChanging
+        gvReiveList.PageIndex = e.NewPageIndex
+        endPage = gvReiveList.PageCount
+        'ViewTransactions.Visible = False
+        Call jobRequestRecieveList()
+    End Sub
+
+    Protected Sub btnDesignate_Click(sender As Object, e As EventArgs)
+        Call populateDDLNatureRequest()
+        Dim req = Trim(hdCode.Value.ToUpper)
+        If req = "P" Or req = "R" Or req = "RG" Or req = "T" Or req = "UT" Or req = "U" Or req = "UIC" Then
+            ddlSection.SelectedIndex = 0
+        ElseIf req = "SE" Then
+            ddlSection.SelectedIndex = 3
+        Else
+            ddlSection.SelectedIndex = 1
+        End If
+
+        txtRemarks.Text = ""
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#dvDesignation').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+    End Sub
+
+    Protected Sub btnSave_Click(sender As Object, e As EventArgs)
+        webservice = general.getDefinitionWebser
+        Dim control = lblControlNo.Text
+        Dim recievedby = Session("UserName")
+        Dim daterecieved = Date.Today
+        Dim referredSec = ddlSection.SelectedValue
+        Dim remarks = txtRemarks.Text
+        Dim status = "S"
+
+        If webservice.CRUDCentral("UPDATE JRStatus SET ReferredSec = '" & referredSec & "',ReceivedBy='" & recievedby & "', DateReceived='" & daterecieved & "', Remarks='" & remarks & "', JRStatus='" & status & "'  WHERE ControlNo = '" & lblControlNo.Text & "'") = True Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "AssignSuccess();", True)
+        Else
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "Error();", True)
+        End If
+    End Sub
+
+    Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
+        Call jobRequestRecieveList()
+    End Sub
+
+
+End Class
