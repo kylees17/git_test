@@ -13,3 +13,16 @@ End If
             CssClass="btn btn-primary btn-sm" />
     </ItemTemplate>
 </asp:TemplateField>
+
+
+
+Protected Sub btnSelect_Click(sender As Object, e As EventArgs)
+    Dim btn As Button = CType(sender, Button)
+    Dim controlNo As String = btn.CommandArgument
+
+    lblDetails.Text = controlNo & " - Details"
+    Call ShowJobRequestDetails(controlNo)
+
+    ' ✅ Show the modal
+    ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+End Sub
