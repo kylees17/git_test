@@ -1,0 +1,4 @@
+If e.CommandName = "SelectRow" Then
+    Dim index As Integer = Convert.ToInt32(e.CommandArgument)
+    Response.Write("<script>alert('RowCommand Fired - Index: " & index & "');</script>")
+End If
