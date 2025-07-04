@@ -2,3 +2,14 @@ If e.CommandName = "SelectRow" Then
     Dim index As Integer = Convert.ToInt32(e.CommandArgument)
     Response.Write("<script>alert('RowCommand Fired - Index: " & index & "');</script>")
 End If
+
+
+<asp:TemplateField HeaderText="Action">
+    <ItemTemplate>
+        <asp:Button ID="btnSelect" runat="server"
+            OnClick="btnSelect_Click"
+            CommandArgument='<%# Eval("ControlNo") %>'
+            Text="Select"
+            CssClass="btn btn-primary btn-sm" />
+    </ItemTemplate>
+</asp:TemplateField>
