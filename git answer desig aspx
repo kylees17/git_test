@@ -1,8 +1,5 @@
-Imports System.Reflection.Emit
-
 Public Class Designation
     Inherits System.Web.UI.Page
-
 
     Dim webservice As Object
     Dim general As New CommonClass
@@ -63,6 +60,16 @@ Public Class Designation
         Next
     End Sub
 
+    Protected Sub gvReiveList_SelectedIndexChanged(sender As Object, e As EventArgs) Handles gvReiveList.SelectedIndexChanged
+        If Trim(gvReiveList.SelectedRow.Cells(0).Text) <> "" Then
+            lblDetails.Text = gvReiveList.SelectedRow.Cells(0).Text + " - Details"
+            Call jobRequestDetailsShow(gvReiveList.SelectedRow.Cells(0).Text)
+
+            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#div2').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+        End If
+    End Sub
+
+
     Protected Sub gvReiveList_RowDataBound(sender As Object, e As GridViewRowEventArgs)
         If (e.Row.RowType = DataControlRowType.DataRow) Then
 
@@ -79,13 +86,14 @@ Public Class Designation
         End If
     End Sub
 
+
     Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
         If e.CommandName = "SelectRow" Then
             Dim index As Integer = Convert.ToInt32(e.CommandArgument)
             gvReiveList.SelectedIndex = index
 
             lblDetails.Text = gvReiveList.Rows(index).Cells(0).Text & " - Details"
-            Call ShowJobRequestDetails(gvReiveList.Rows(index).Cells(0).Text)
+            Call jobRequestDetailsShow(gvReiveList.Rows(index).Cells(0).Text)
 
             ScriptManager.RegisterStartupScript(Me.Page, Me.Page.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
 
@@ -93,27 +101,24 @@ Public Class Designation
         End If
     End Sub
 
-
-    Private Sub ShowJobRequestDetails(controlNo As String)
+    Protected Sub jobRequestDetailsShow(controlNo As String)
         webservice = general.getDefinitionWebser
-        Dim table = "JRHeader A INNER JOIN reference C ON C.code = A.natureofrequest"
-        Dim columns = "(SELECT BranchName FROM FSBranchDepartment WHERE BranchNo = A.BranchDept) AS BranchDept, " &
-                      "A.natureofrequest, C.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested"
-        Dim conditions = $"A.ControlNo = '{controlNo}' AND C.type = 'NatureOfRequest'"
+        Dim table = "JRHeader A inner join reference c on c.code = a.natureofrequest"
+        Dim columns = "(select BranchName from FSBranchDepartment where BranchNo =a.BranchDept) As BranchDept, a.natureofrequest, c.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested "
+        Dim conditions = "A.ControlNo = '" & controlNo & "' and c.type='NatureOfRequest'"
+        Dim orderby = ""
 
-        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, "")
-            If dt.Rows.Count > 0 Then
-                lblControlNo.Text = dt.Rows(0)("ControlNo").ToString()
-                lblPlaceConcern.Text = dt.Rows(0)("BranchDept").ToString()
-                lblNatureRequest.Text = dt.Rows(0)("Description").ToString()
-                lblRequestor.Text = dt.Rows(0)("RequestedBy").ToString()
-                lblVerifiedBy.Text = dt.Rows(0)("VerifiedBy").ToString()
-                lblApprovedby.Text = dt.Rows(0)("ApprovedBy").ToString()
-                lblDateRequsted.Text = dt.Rows(0)("DateRequested").ToString()
-                lblSubject.Text = dt.Rows(0)("Subject").ToString()
-                txtDetails.Text = dt.Rows(0)("Details").ToString()
-                hdCode.Value = dt.Rows(0)("natureofrequest").ToString()
-            End If
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            lblControlNo.Text = dt.Rows(0).Item("ControlNo")
+            lblPlaceConcern.Text = dt.Rows(0).Item("BranchDept")
+            lblNatureRequest.Text = dt.Rows(0).Item("Description")
+            lblRequestor.Text = dt.Rows(0).Item("RequestedBy")
+            lblVerifiedBy.Text = dt.Rows(0).Item("VerifiedBy")
+            lblApprovedby.Text = dt.Rows(0).Item("ApprovedBy")
+            lblDateRequsted.Text = dt.Rows(0).Item("DateRequested")
+            lblSubject.Text = dt.Rows(0).Item("Subject")
+            txtDetails.Text = dt.Rows(0).Item("Details")
+            hdCode.Value = dt.Rows(0).Item("natureofrequest")
         End Using
     End Sub
 
@@ -130,6 +135,15 @@ Public Class Designation
 
         txtRemarks.Text = ""
         ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$(function() { $('#dvDesignation').fadeIn(0500); $('#backgroundpopup').css('opacity', '0.8'); $('#backgroundpopup').fadeIn(0002); });", True)
+    End Sub
+
+    Protected Sub populateDDLNatureRequest()
+        webservice = general.getDefinitionWebser
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' and active='1'", "")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                ddlSection.Items.Add(New ListItem(Trim(dt.Rows(i).Item("description")).ToString, Trim(dt.Rows(i).Item("code").ToString)))
+            Next
+        End Using
     End Sub
 
     Protected Sub btnSave_Click(sender As Object, e As EventArgs)
@@ -149,15 +163,12 @@ Public Class Designation
     End Sub
 
 
-    Protected Sub populateDDLNatureRequest()
-        webservice = general.getDefinitionWebser
-        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' and active='1'", "")
-            For i As Integer = 0 To dt.Rows.Count - 1
-                ddlSection.Items.Add(New ListItem(Trim(dt.Rows(i).Item("description")).ToString, Trim(dt.Rows(i).Item("code").ToString)))
-            Next
-        End Using
-    End Sub
+    Protected Sub gvReiveList_PageIndexChanging(sender As Object, e As GridViewPageEventArgs) Handles gvReiveList.PageIndexChanging
+        gvReiveList.PageIndex = e.NewPageIndex
+        endPage = gvReiveList.PageCount
 
+        Call jobRequestRecieveList()
+    End Sub
 
     Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
         Call jobRequestRecieveList()
