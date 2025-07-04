@@ -1,0 +1,18 @@
+<asp:GridView ID="gvReiveList" runat="server" AutoGenerateColumns="False" 
+    OnRowCommand="gvReiveList_RowCommand" 
+    OnPageIndexChanging="gvReiveList_PageIndexChanging" 
+    OnSelectedIndexChanged="gvReiveList_SelectedIndexChanged">
+    
+    <Columns>
+        <!-- Example data fields -->
+        <asp:BoundField DataField="ID" HeaderText="ID" />
+        <asp:BoundField DataField="Title" HeaderText="Title" />
+        
+        <!-- Your Button Column -->
+        <asp:TemplateField>
+            <ItemTemplate>
+                <asp:Button ID="btnSelect" runat="server" CommandName="SelectRow" CommandArgument='<%# Container.DataItemIndex %>' Text="Select" CssClass="btn btn-primary btn-sm" />
+            </ItemTemplate>
+        </asp:TemplateField>
+    </Columns>
+</asp:GridView>
