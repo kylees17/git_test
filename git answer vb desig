@@ -1,351 +1,151 @@
-<%@ Page Title="" Language="vb" AutoEventWireup="false" MasterPageFile="~/MainForm.Master" CodeBehind="Designation.aspx.vb" Inherits="JRequest.Designation" %>
+Imports System.Data
+Imports System.Data.SqlClient
 
-<asp:Content ID="Content1" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
-        <link href="css/loan.css" rel="stylesheet" type="text/css" media="all" />
+Public Class Designation
+    Inherits System.Web.UI.Page
 
+    Dim webservice As Object
+    Dim general As New CommonClass
+    Dim endPage As Integer
 
+    Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
+        If Not Page.IsPostBack Then
+            If Session("UserName") Is Nothing Then
+                Response.Redirect("Login.aspx")
+                Exit Sub
+            End If
+        End If
+        jobRequestRecieveList()
+    End Sub
 
-    <style>
-         .gvPagerCss span {
-            font-weight: bold;
-        }
+    Protected Sub jobRequestRecieveList()
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A INNER JOIN JRStatus B ON A.ControlNo = B.ControlNo"
+        Dim columns = "A.ControlNo, A.Subject, A.RequestedBy, A.DateRequested, B.PriorityLevel"
+        Dim conditions = "(B.JRStatus = 'A')"
+        Dim orderby = "B.PriorityLevel ASC, A.DateRequested DESC"
 
-        .gridHover:hover {
-            cursor:pointer;
-            background-color:#aebfd0;
-        }
-        
-        .gridHover1:hover {
-            cursor: default;
-            background-color: transparent;
-        }
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, orderby)
+            While dt.Rows.Count Mod 10 <> 0
+                dt.Rows.Add("", "", "", Nothing)
+            End While
 
-        #div2 {
-            max-width: 950px;
-                width: 70%;
-            font-family: "lucida grande",tahoma,verdana,arial,sans-serif;
-            background: none repeat scroll 0 0 #FFFFFF;
-            border: 3px solid #2c66b6;
-            border-radius: 3px 3px 3px 3px;
-            color: #333333;
-            display: none;
-            font-size: 14px;
-            top: 15%;
-            left: 40%;
-            margin-left: -202px;
-            position: fixed;
-            z-index: 2;
-        }
+            lblNotice.Visible = (dt.Rows.Count = 0)
 
-         #dvDesignation {
-             width: 482px;
-             font-family: "lucida grande",tahoma,verdana,arial,sans-serif;
-             background: none repeat scroll 0 0 #FFFFFF;
-             border: 3px solid #2c66b6;
-             border-radius: 3px 3px 3px 3px;
-             color: #333333;
-             display: none;
-             font-size: 14px;
-             top: 25%;
-             left: 53%;
-             margin-left: -202px;
-             position: fixed;
-             z-index: 2;
-             height: 315px;
-         }
+            gvReiveList.DataSource = dt
+            gvReiveList.DataBind()
+        End Using
 
-        .divFlexEmailSupport {
-            display: flex;
-            margin: 0px 0px;
-            padding: 0px 0px;
-            align-items: center;
-        }
+        For i = 0 To gvReiveList.Rows.Count - 1
+            Dim lvl = gvReiveList.Rows(i).Cells(4).Text
+            Try
+                Select Case CInt(lvl)
+                    Case 1 : lvl = "High"
+                    Case 2 : lvl = "Normal"
+                    Case 3 : lvl = "Low"
+                End Select
+            Catch ex As Exception
+                lvl = ""
+            End Try
+            gvReiveList.Rows(i).Cells(4).Text = lvl
+        Next
 
-        #lblNotice {
-            width: 100%;
-            display: block;
-            text-align: center;
-            font-size: 18px;
-        }
-        .Gvheader {text-align:center;}
+        For i = 0 To gvReiveList.Rows.Count - 1
+            gvReiveList.Rows(i).CssClass = If(Trim(gvReiveList.Rows(i).Cells(0).Text) = "", "gridHover1", "gridHover")
+        Next
+    End Sub
 
-        .paddingRight {padding-right: 15px;}
+    Protected Sub gvReiveList_SelectedIndexChanged(sender As Object, e As EventArgs) Handles gvReiveList.SelectedIndexChanged
+        If Trim(gvReiveList.SelectedRow.Cells(0).Text) <> "" Then
+            lblDetails.Text = gvReiveList.SelectedRow.Cells(0).Text & " - Details"
+            jobRequestDetailsShow(gvReiveList.SelectedRow.Cells(0).Text)
+            ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+        End If
+    End Sub
 
-        .paddingLeft {padding-left: 10px;}
+    Protected Sub gvReiveList_RowDataBound(sender As Object, e As GridViewRowEventArgs)
+        If e.Row.RowType = DataControlRowType.DataRow Then
+            Dim subjectValue As String = DataBinder.Eval(e.Row.DataItem, "Subject").ToString()
+            Dim btnSelect As Button = CType(e.Row.FindControl("btnSelect"), Button)
+            btnSelect.Visible = Not String.IsNullOrEmpty(subjectValue)
+        End If
+    End Sub
 
-        .detailContent {
-            width: 19%;
-            position: relative;
-            display: inline-block;
-            /*text-align: right;*/
-            margin-left: 30px;
-        }
+    Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
+        If e.CommandName = "SelectRow" Then
+            Dim controlNo = e.CommandArgument.ToString()
+            For Each row As GridViewRow In gvReiveList.Rows
+                If row.Cells(0).Text = controlNo Then
+                    gvReiveList.SelectedIndex = row.RowIndex
+                    Exit For
+                End If
+            Next
+            lblDetails.Text = controlNo & " - Details"
+            jobRequestDetailsShow(controlNo)
+            ScriptManager.RegisterStartupScript(Me.Page, Me.Page.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+        End If
+    End Sub
 
-        .smallDetail {visibility:hidden;}
-        .resultDetail {width: 30%;}     
-        .cssddlApproved { position:absolute ;width: 285px;}
-        .detailsheight {height:500px;}
-        .divTodo {padding-bottom: 20px;text-align: right;margin-right: 150px;}
+    Protected Sub jobRequestDetailsShow(controlNo As String)
+        webservice = general.getDefinitionWebser
+        Dim table = "JRHeader A INNER JOIN reference C ON C.code = A.natureofrequest"
+        Dim columns = "(SELECT BranchName FROM FSBranchDepartment WHERE BranchNo = A.BranchDept) AS BranchDept, A.natureofrequest, C.Description, A.ControlNo, A.Subject, A.Details, A.RequestedBy, A.VerifiedBy, A.ApprovedBy, A.DateRequested"
+        Dim conditions = $"A.ControlNo = '{controlNo}' AND C.type='NatureOfRequest'"
 
-        @media (max-width:1260px){
-            #div2 {
-                max-width: 950px;
-                width: 70%;
-                left: 465px;
-            }
-        }
+        Using dt As DataTable = webservice.SelectTableForCS(table, columns, conditions, "")
+            If dt.Rows.Count > 0 Then
+                lblControlNo.Text = dt.Rows(0)("ControlNo").ToString()
+                lblPlaceConcern.Text = dt.Rows(0)("BranchDept").ToString()
+                lblNatureRequest.Text = dt.Rows(0)("Description").ToString()
+                lblRequestor.Text = dt.Rows(0)("RequestedBy").ToString()
+                lblVerifiedBy.Text = dt.Rows(0)("VerifiedBy").ToString()
+                lblApprovedby.Text = dt.Rows(0)("ApprovedBy").ToString()
+                lblDateRequsted.Text = dt.Rows(0)("DateRequested").ToString()
+                lblSubject.Text = dt.Rows(0)("Subject").ToString()
+                txtDetails.Text = dt.Rows(0)("Details").ToString()
+                hdCode.Value = dt.Rows(0)("natureofrequest").ToString()
+            End If
+        End Using
+    End Sub
 
-        @media (max-width: 992px) {
-            #div2 {
-                width: 100%;
-                left: 0px;
-                margin-left: 20px;
-                max-width: 95.5%;
-                overflow-y:auto 
-            }
-            .resultDetail {width: 25%;}
-        }
+    Protected Sub btnDesignate_Click(sender As Object, e As EventArgs)
+        populateDDLNatureRequest()
+        Dim req = Trim(hdCode.Value.ToUpper)
+        ddlSection.SelectedIndex = If(New String() {"P", "R", "RG", "T", "UT", "U", "UIC"}.Contains(req), 0, If(req = "SE", 3, 1))
 
-         @media (max-width: 767px) {
-             .smallDetail {visibility: collapse;}
-             .detailContent {width: 30%;text-align: right;}
-             .resultDetail {width: 50%;}
-             .requestwidth {margin-left: 30px;width: 30%;}
-             .smallDivflex1 {display: block;}
-             .detailContent.smallDetail {width: 20%;}
-             .myfonts.detailContent.smallDetail {width: 20%;}
+        txtRemarks.Text = ""
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "modalscript1", "$('#dvDesignation').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+    End Sub
 
-             .divTodo {
-                 padding-bottom: 20px;
-                 width: 100%;
-                 text-align: center;
-                 padding-right: 0px;
-             }
-         }
+    Protected Sub populateDDLNatureRequest()
+        webservice = general.getDefinitionWebser
+        ddlSection.Items.Clear()
+        Using dt As DataTable = webservice.SelectTableForCS("Reference", "code,description", "type='referredsec' AND active='1'", "")
+            For Each row As DataRow In dt.Rows
+                ddlSection.Items.Add(New ListItem(row("description").ToString(), row("code").ToString()))
+            Next
+        End Using
+    End Sub
 
-         @media (max-width:512px) {         
-        }
+    Protected Sub btnSave_Click(sender As Object, e As EventArgs)
+        webservice = general.getDefinitionWebser
+        Dim result = webservice.CRUDCentral($"UPDATE JRStatus SET ReferredSec = '{ddlSection.SelectedValue}', ReceivedBy='{Session("UserName")}', DateReceived='{Date.Today}', Remarks='{txtRemarks.Text}', JRStatus='S' WHERE ControlNo = '{lblControlNo.Text}'")
 
-         @media (max-height:575px) {
-            .detailsheight {
-                height:450px;
-            }
-         }
-    </style>
+        If result Then
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "AssignSuccess();", True)
+        Else
+            ScriptManager.RegisterStartupScript(Me, [GetType](), "displayalertmessage", "Error();", True)
+        End If
+    End Sub
 
-    <script>
-        function AssignSuccess() {
-            Swal.fire({
-                position: 'center',
-                icon: 'info',
-                title: 'Job Assigned',
-                showConfirmButton: true,
-                confirmButtonText: 'Yes',
-                customClass: 'swal-size-sm'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById("btnDummy").click();
-                }
-            });
-        }
+    Protected Sub gvReiveList_PageIndexChanging(sender As Object, e As GridViewPageEventArgs) Handles gvReiveList.PageIndexChanging
+        gvReiveList.PageIndex = e.NewPageIndex
+        endPage = gvReiveList.PageCount
+        jobRequestRecieveList()
+    End Sub
 
-        function Error() {
-            Swal.fire({
-                position: 'center',
-                icon: 'info',
-                title: 'Something went Wrong',
-                text: 'Please Try Again Later',
-                showConfirmButton: true,
-                confirmButtonText: 'Yes',
-                customClass: 'swal-size-sm'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    document.getElementById("btnDummy").click();
-                }
-            });
-        }
+    Protected Sub btnDummy_Click(sender As Object, e As EventArgs) Handles btnDummy.Click
+        jobRequestRecieveList()
+    End Sub
 
-    </script>
-
-     <div class="header">
-     <div class="page-title">
-         &nbsp;&nbsp;Assign
-     </div>
- </div>
-
- <div>
-     <asp:UpdatePanel ID="UpdatePanel1" runat="server" >
-         <ContentTemplate>
-             <asp:GridView ID="gvReiveList" runat="server" CellPadding="0" GridLines="none"
-                 AutoGenerateColumns="false" BorderColor="White" CellSpacing="0" BackColor="Transparent" BorderWidth="1px"
-                 CssClass="responsiveDepositAccnts" RowStyle-Height="35" AllowPaging="true" PageSize="10"
-                 OnRowDataBound="gvReiveList_RowDataBound" OnRowCommand="gvReiveList_RowCommand" Width="100%" >
-                 <HeaderStyle BackColor="Transparent" BorderStyle="Solid" BorderWidth="1px" BorderColor="#CCCCCC" Height="35" />
-                 <Columns>
-                     <asp:BoundField HeaderStyle-CssClass="Gvheader" HeaderText="Control No" NullDisplayText=" " 
-                         ItemStyle-HorizontalAlign="Center" ItemStyle-Width="15%" DataField="ControlNo" />
-                     <asp:BoundField HeaderStyle-CssClass="Gvheader" HeaderText="Subject" NullDisplayText=" "
-                         ItemStyle-HorizontalAlign="left" ItemStyle-CssClass="" ItemStyle-Width="35%" DataField="Subject" />
-                     <asp:BoundField HeaderStyle-CssClass="Gvheader" HeaderText="Requested By" NullDisplayText=" " 
-                         ItemStyle-HorizontalAlign="left" ItemStyle-CssClass="paddingLeft" ItemStyle-Width="20%" DataField="RequestedBy" />
-                     <asp:BoundField HeaderStyle-CssClass="Gvheader" HeaderText="Date Requested" NullDisplayText=" " 
-                         ItemStyle-HorizontalAlign="Center" ItemStyle-CssClass="" ItemStyle-Width="10%" DataField="DateRequested" DataFormatString="{0:MM/dd/yyyy}" />
-                     <asp:BoundField HeaderStyle-CssClass="Gvheader" HeaderText="Priority Level" NullDisplayText=" " 
-                         ItemStyle-HorizontalAlign="Center" ItemStyle-CssClass="paddingRight" ItemStyle-Width="5%" DataField="PriorityLevel" />              
-                         <asp:TemplateField HeaderText="Action">
-                        <ItemTemplate>
-                            <asp:Button ID="btnSelect" runat="server"
-                                CommandName="SelectRow"
-                                CommandArgument='<%# Eval("ControlNo") %>'
-                                Text="Assign"
-                                CssClass="btn btn-sm btn-primary" />
-                        </ItemTemplate>
-                    </asp:TemplateField>
-                 </Columns>
-                 <RowStyle CssClass="gridHover" />
-                 <PagerStyle CssClass="gvPagerCss bs-pagination" BackColor="#2c66b6" ForeColor="White" HorizontalAlign="Center" />
-                 <PagerSettings Mode="NumericFirstLast" FirstPageText="First" LastPageText="Last" Position="Bottom" PageButtonCount="5" />
-             </asp:GridView>
-             <asp:label runat="server" ID="lblNotice" Visible="false" ClientIDMode="Static"  Text="Nothing to Display"/>
-             <asp:button ID="btnDummy" style="display:none" runat="server" OnClick="btnDummy_Click" ClientIDMode="Static" ></asp:button>
-         </ContentTemplate>
-     </asp:UpdatePanel>
- </div>
-
-     <div id="div2" style="height: 500px;" class="detailsheight">
-     <asp:Button runat="server" Text="Button" Style="display: none" UseSubmitBehavior="false" />
-     <div style="width: 100%; height: 50px; background-color: #2c66b6; margin: 0 auto; padding: 0; position: absolute; left: 0; top: 0;">
-         <div class="modalHeader" style="font-size: 18px;display: flex;height: 50px;align-items: center;">
-             <i class="fa fa-question-circle" style="margin-left: 15px;"></i>
-             <asp:label runat="server" ID="lblDetails" style="margin-left: 15px;"/>
-             <i class="icon-remove-sign" style="cursor: pointer;right: 15px;position: absolute;" onclick="jQuery('#backgroundpopup').fadeOut('normal');jQuery('#div2').fadeOut('normal');"></i>
-         </div>
-     </div>
-
-     <asp:UpdatePanel ID="UpdatePanel4" runat="server" style="margin-top: 15px; padding-top: 5px">
-         <ContentTemplate>
-             <div style="width: 100%;">
-                 <div style="margin-top: 30px;" class="personal">
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts detailContent">Branch / Dept Concern</asp:Label>:
-                         <asp:Label ID="lblPlaceConcern" CssClass="result myfonts resultDetail" runat="server" />
-                     </div>
-
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts requestwidth " Style="">Requested By</asp:Label>:
-                         <asp:Label ID="lblRequestor" CssClass="result myfonts" Style="" runat="server" />
-                     </div>
-                 </div>
-             </div>
-
-             <div>
-                 <div style="" class="personal">
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts detailContent">Nature of Request</asp:Label>:
-                         <asp:Label ID="lblNatureRequest" CssClass="result myfonts resultDetail" Text="" runat="server" />
-                    </div>
-
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts requestwidth" Style="">Verified By</asp:Label>:
-                          <asp:Label ID="lblVerifiedBy" CssClass="result myfonts" runat="server" />
-                     </div>
-                 </div>
-             </div>
-
-             <div>
-                 <div style="" class="personal">
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts detailContent">Control No</asp:Label>:
-                         <asp:Label ID="lblControlNo" CssClass="result myfonts resultDetail" Text="" runat="server" />
-                     </div>
-
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts requestwidth">Approved By</asp:Label>:
-                         <asp:Label ID="lblApprovedby" CssClass="result myfonts" runat="server" />
-                     </div>
-                 </div>
-             </div>
-
-             <div>
-                 <div style="" class="personal">
-                     <div class="smallDivflex">
-                         <asp:Label runat="server" class="myfonts detailContent">Date Requested</asp:Label>:
-                         <asp:Label ID="lblDateRequsted" CssClass="result myfonts resultDetail" Style="" runat="server" />
-                     </div>
-                 </div>
-             </div>
-
-             <div>
-                 <div style="padding-top: 15px;" class="personal">
-                     <div class="smallDivflex">
-                        <asp:Label runat="server" class="myfonts detailContent" style="">Subject</asp:Label>:
-                        <asp:Label ID="lblSubject" CssClass="result myfonts resultDetail" Style="width: 62%;" runat="server" />
-                     </div>
-                 </div>
-             </div>
-
-             <div>
-                 <div style="padding-top: 15px;" class="Details">
-                     <div class="smallDivflex1 smallDivflex" style="text-decoration: none;padding-bottom: 20px;">
-                         <asp:Label runat="server" ClientIDMode="Static" class="myfonts detailContent">Details</asp:Label>:
-                         <br />
-                         <asp:Label runat="server" ClientIDMode="Static" class="myfonts detailContent smallDetail" style="visibility:hidden;margin:0px 0px">Details:</asp:Label>
-                         
-                         <asp:TextBox runat="server" ClientIDMode="Static" ID="txtDetails" CssClass="result myfonts smallEmailScreen" style="margin-left: 5px;height: 140px;width: 60%;" TextMode="MultiLine" Enabled="false"></asp:TextBox>
-                     </div>
-                 </div>
-             </div>
-             <br />
-             <div style="" class="divTodo" >
-                 <asp:Button ID="btnDesignate" runat="server" Text="Designate" class="myfonts" Style="width: 100px;" OnClick="btnDesignate_Click"  />
-             </div>
-
-             <asp:HiddenField runat="server" id="hdCode"/>
-         </ContentTemplate>
-     </asp:UpdatePanel>
- </div>
-
-     <div id="dvDesignation" style=""><%--height: auto; --%>
-     <asp:Button ID="Button1" runat="server" Text="Button" Style="display: none" UseSubmitBehavior="false" />
-     <div style="width: 100%; height: 50px; background-color: #2c66b6; margin: 0 auto; padding: 0; position: absolute; left: 0; top: 0;">
-         <div class="modalHeader" style="font-size: 18px;display: flex;height: 50px;align-items: center;">
-             <i class="fa fa-question-circle" style="margin-left: 15px;"></i>
-             <asp:label runat="server" style="margin-left: 15px;" Text="Section"/>
-             <i class="icon-remove-sign" style="cursor: pointer;right: 15px;position: absolute;" onclick="jQuery('#backgroundpopup').fadeOut('normal');jQuery('#dvDesignation').fadeOut('normal');"></i>
-         </div>
-     </div>
-
-     <asp:UpdatePanel ID="UpdatePanel2" runat="server" style="margin-top: 15px; padding-top: 5px">
-         <ContentTemplate>
-             <div>
-                 <br /><br />
-                 <div style="margin-top: 25px;display: flex;" class="personal">
-                     <div class="" style="display:flex">
-                         <asp:Label runat="server" class="myfonts detailContent" style="width:170px;text-align: left; ">Section Concern :</asp:Label>
-
-                         <div style="width: 30%; padding-left: 5px; height: 30px;">
-                             <asp:DropDownList runat="server" CssClass="cssddlApproved" ID="ddlSection" style="position: absolute;z-index: 9999;" OnMouseDown="this.size=5;" OnFocusOut="this.size=1;" OnDblClick="this.size=1;" /><%--AutoPostBack="true"  --%>
-                         </div>
-                     </div>
-                 </div>
-             </div>
-             
-              <div>
-                 <div style="padding-top: 15px;" class="Details">
-                     <div class="" style="display: contents;">
-                         <asp:Label runat="server" ClientIDMode="Static" class="myfonts detailContent">Remarks:</asp:Label>
-                         <br />
-                         <asp:TextBox runat="server" ClientIDMode="Static" ID="txtRemarks" CssClass="result myfonts" style="margin: 10px 20px 0px 30px;height: 85px;width: 420px;" TextMode="MultiLine"></asp:TextBox>
-                     </div>
-                 </div>
-             </div>
-
-             <br />
-             <div style="width: 100%;text-align: center;" >
-                 <asp:Button ID="btnSave" runat="server" Text="Done" class="myfonts" Style="width: 100px;" OnClick="btnSave_Click"  />
-             </div>
-         </ContentTemplate>
-     </asp:UpdatePanel>
- </div>
-
-</asp:Content>
+End Class
