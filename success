@@ -1,0 +1,34 @@
+Protected Sub btnSave_Click(sender As Object, e As EventArgs)
+    webservice = general.getDefinitionWebser
+
+    Dim query = $"UPDATE JRStatus SET " &
+                $"ReferredSec = '{ddlSection.SelectedValue}', " &
+                $"ReceivedBy = '{Session("UserName")}', " &
+                $"DateReceived = '{Date.Today}', " &
+                $"Remarks = '{txtRemarks.Text}', " &
+                $"JRStatus = 'S' " &
+                $"WHERE ControlNo = '{lblControlNo.Text}'"
+
+    Dim success = webservice.CRUDCentral(query)
+
+    If success Then
+        ' ✅ Reload GridView after update
+        LoadJobRequests()
+
+        ' ✅ Hide modals and show confirmation
+        Dim script As String = "$('#dvDesignation').fadeOut(200);" & _
+                               "$('#div2').fadeOut(200);" & _
+                               "$('#backgroundpopup').fadeOut(200);" & _
+                               "Swal.fire({" & _
+                               "    position: 'center'," & _
+                               "    icon: 'info'," & _
+                               "    title: 'Job Assigned'," & _
+                               "    showConfirmButton: true," & _
+                               "    confirmButtonText: 'OK'," & _
+                               "    customClass: 'swal-size-sm'" & _
+                               "});"
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "reloadGrid", script, True)
+    Else
+        ScriptManager.RegisterStartupScript(Me, Me.GetType(), "assignError", "Error();", True)
+    End If
+End Sub
