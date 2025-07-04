@@ -1,0 +1,12 @@
+Protected Sub gvReiveList_RowCommand(sender As Object, e As GridViewCommandEventArgs) Handles gvReiveList.RowCommand
+    If e.CommandName = "SelectRow" Then
+        Dim index As Integer = Convert.ToInt32(e.CommandArgument)
+        gvReiveList.SelectedIndex = index
+
+        Dim controlNo = gvReiveList.Rows(index).Cells(0).Text
+        lblDetails.Text = controlNo & " - Details"
+        jobRequestDetailsShow(controlNo)
+
+        ScriptManager.RegisterStartupScript(Me.Page, Me.Page.GetType(), "modalscript", "$('#div2').fadeIn(500); $('#backgroundpopup').fadeIn(200);", True)
+    End If
+End Sub
